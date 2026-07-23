@@ -129,6 +129,7 @@ def assemble_final(bg_path: str, frames_dir: str, audio_path: str, out_path: str
         "-filter_complex", "[0:v][1:v]overlay=0:0[v]",
         "-map", "[v]", "-map", "2:a",
         "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-r", str(FPS), "-vsync", "cfr",
         "-c:a", "aac", "-shortest",
         out_path,
     ]
