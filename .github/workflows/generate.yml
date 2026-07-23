@@ -1,0 +1,39 @@
+name: Generate Short Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      quote:
+        description: 'Текст цитаты (оставь пустым для случайной)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Generate video
+        run: |
+          python3 -c "
+          import create_short
+          create_short.create_short(quote='${{ github.event.inputs.quote }}' or None)
+          "
+
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: short-video
+          path: output/*.mp4
