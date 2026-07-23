@@ -34,10 +34,14 @@ QUOTES = [
 ]
 
 
-async def generate_voice_with_timings(text: str, audio_path: str):
+async def generate_voice_with_timings(text: str, audio_path: str, voice: str = None, rate: str = None, pitch: str = None):
     import edge_tts
-    communicate = edge_tts.Communicate(text, VOICE, rate=RATE)
+    kwargs = {"rate": rate or RATE}
+    if pitch:
+        kwargs["pitch"] = pitch
+    communicate = edge_tts.Communicate(text, voice or VOICE, **kwargs)
     word_timings = []
+
     with open(audio_path, "wb") as audio_file:
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
