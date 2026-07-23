@@ -28,9 +28,9 @@ COLOR_HIGHLIGHT = (240, 185, 11)
 QUOTES = [
     "Дисциплина побеждает мотивацию каждый раз, когда мотивация решает взять выходной",
     "Ты не устал, тебе просто скучно побеждать медленно",
-    "Тело терпит столько, сколько разум ему позволяет",
-    "Каждая пропущенная тренировка — подарок для того, с кем ты соревнуешься",
-    "Час учёбы сегодня — час свободы завтра",
+    "Никто не придёт и не спасёт тебя, хорошая новость — тебе это и не нужно",
+    "Боль от дисциплины весит грамм, боль от сожаления весит тонну",
+    "Успех не любит тех, кто ждёт настроения, чтобы начать",
 ]
 
 
@@ -142,6 +142,16 @@ def create_short(quote: str = None, out_name: str = "short.mp4"):
 
     audio_path = f"{TMP_DIR}/voice.mp3"
     word_timings = asyncio.run(generate_voice_with_timings(quote, audio_path))
+
+    if not word_timings:
+        print("Предупреждение: нет точных таймингов от edge-tts, использую оценку по длине слов")
+        words = quote.split()
+        t = 0.3
+        for w in words:
+            dur = max(0.18, len(w) * 0.06)
+            word_timings.append({"word": w, "start": t, "end": t + dur})
+            t += dur + 0.05
+
     duration = word_timings[-1]["end"] + 1.0
 
     bg_path = f"{TMP_DIR}/bg.mp4"
