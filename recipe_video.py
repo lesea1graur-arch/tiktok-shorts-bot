@@ -93,7 +93,12 @@ def build_step_segment(step: dict, index: int, tmp_dir: str) -> str:
     query = step["query"]
 
     audio_path = os.path.join(step_dir, "voice.mp3")
-    word_timings = asyncio.run(cs.generate_voice_with_timings(text, audio_path))
+    word_timings = asyncio.run(cs.generate_voice_with_timings(
+        text, audio_path,
+        voice="ru-RU-SvetlanaNeural",
+        rate="+18%",
+        pitch="+4Hz",
+    ))
 
     if not word_timings:
         words = text.split()
@@ -136,6 +141,7 @@ def build_step_segment(step: dict, index: int, tmp_dir: str) -> str:
 
 
 def concat_segments(segment_paths: list, out_path: str):
+    """Перекодируем при склейке (не copy), чтобы убрать дёрганье на стыках."""
     list_file = os.path.join(TMP_DIR, "concat_list.txt")
     with open(list_file, "w") as f:
         for p in segment_paths:
@@ -144,7 +150,9 @@ def concat_segments(segment_paths: list, out_path: str):
     cmd = [
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", list_file,
-        "-c", "copy",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-r", str(cs.FPS),
         out_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)
