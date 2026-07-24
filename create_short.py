@@ -3,8 +3,7 @@ create_short.py — генератор коротких видео под TikTok
 Формат: 1080x1920 (9:16), mp4, h264.
 
 Написан с расчётом на устойчивость: каждый шаг, который может подвести
-(сеть, TTS, ffmpeg), обёрнут проверками и запасными вариантами, чтобы
-одиночный сбой не ронял всю генерацию.
+(сеть, TTS, ffmpeg), обёрнут проверками и запасными вариантами.
 """
 
 import asyncio
@@ -170,23 +169,23 @@ MOOD_QUERIES = [
 ]
 
 
-def _pexels_fetch_mood_video(out_path: str, retries: int = 2) -> bool:
+def _pexels_fetch_one(query: str, out_path: str, exclude_ids: set = None, retries: int = 2) -> bool:
     api_key = os.environ.get("PEXELS_API_KEY", "")
     if not api_key:
         return False
-
-    query = random.choice(MOOD_QUERIES)
+    exclude_ids = exclude_ids or set()
     headers = {"Authorization": api_key}
     for attempt in range(1, retries + 1):
         try:
             resp = requests.get(
                 "https://api.pexels.com/videos/search",
                 headers=headers,
-                params={"query": query, "per_page": 8, "orientation": "portrait"},
+                params={"query": query, "per_page": 12, "orientation": "portrait"},
                 timeout=30,
             )
             resp.raise_for_status()
             videos = resp.json().get("videos", [])
+            videos = [v for v in videos if v.get("id") not in exclude_ids]
             if not videos:
                 return False
 
@@ -206,6 +205,7 @@ def _pexels_fetch_mood_video(out_path: str, retries: int = 2) -> bool:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
             if is_valid_video(out_path):
+                exclude_ids.add(video.get("id"))
                 return True
         except Exception as e:
             print(f"  Ошибка получения фона с Pexels (попытка {attempt}/{retries}): {e}")
@@ -214,27 +214,52 @@ def _pexels_fetch_mood_video(out_path: str, retries: int = 2) -> bool:
 
 
 def prepare_background(duration: float, out_path: str) -> bool:
-    tmp_raw = out_path + "_raw.mp4"
+    api_key = os.environ.get("PEXELS_API_KEY", "")
+    if api_key:
+        clip_len = 6.0
+        n_clips = max(1, min(5, int(duration // clip_len) + 1))
+        used_ids = set()
+        clip_paths = []
+        tmp_dir = os.path.dirname(out_path) or "."
 
-    if _pexels_fetch_mood_video(tmp_raw):
-        zoom_filter = (
-            f"scale={W}:{H}:force_original_aspect_ratio=increase,"
-            f"crop={W}:{H},"
-            f"zoompan=z='min(zoom+0.0010,1.06)':d=1:s={W}x{H}:fps={FPS},"
-            f"eq=contrast=1.08:saturation=1.2:gamma=0.97,"
-            f"colorbalance=rs=0.05:bs=-0.05:rm=0.03:bm=-0.03"
-        )
-        ok = run_ffmpeg([
-            "ffmpeg", "-y",
-            "-stream_loop", "-1", "-i", tmp_raw,
-            "-t", str(duration),
-            "-vf", zoom_filter,
-            "-an", out_path,
-        ], "prepare_background_pexels")
-        os.remove(tmp_raw) if os.path.exists(tmp_raw) else None
-        if ok and is_valid_video(out_path):
-            return True
-        print("  Обработка фона с Pexels не удалась, пробую локальный")
+        for i in range(n_clips):
+            query = random.choice(MOOD_QUERIES)
+            raw_path = os.path.join(tmp_dir, f"_bgraw_{i}.mp4")
+            if _pexels_fetch_one(query, raw_path, exclude_ids=used_ids):
+                clip_paths.append(raw_path)
+
+        if clip_paths:
+            per_clip_dur = duration / len(clip_paths)
+            processed = []
+            zoom_filter_tpl = (
+                f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+                f"crop={W}:{H},"
+                "zoompan=z='min(zoom+0.0015,1.08)':d=1:s={W}x{H}:fps={FPS},"
+                "eq=contrast=1.08:saturation=1.2:gamma=0.97,"
+                "colorbalance=rs=0.05:bs=-0.05:rm=0.03:bm=-0.03"
+            ).format(W=W, H=H, FPS=FPS)
+
+            for i, raw in enumerate(clip_paths):
+                seg_path = os.path.join(tmp_dir, f"_bgseg_{i}.mp4")
+                ok = run_ffmpeg([
+                    "ffmpeg", "-y",
+                    "-stream_loop", "-1", "-i", raw,
+                    "-t", str(per_clip_dur + 1.0),
+                    "-vf", zoom_filter_tpl,
+                    "-an", seg_path,
+                ], f"bg_segment_{i}")
+                if ok and is_valid_video(seg_path):
+                    processed.append(seg_path)
+                os.remove(raw) if os.path.exists(raw) else None
+
+            if processed:
+                success = _stitch_backgrounds(processed, out_path, duration)
+                for p in processed:
+                    if os.path.exists(p):
+                        os.remove(p)
+                if success:
+                    return True
+        print("  Не удалось собрать фон из нескольких клипов Pexels, пробую локальный")
 
     files = [f for f in Path(BG_DIR).glob("*.mp4") if is_valid_video(str(f))]
     if files:
@@ -257,6 +282,47 @@ def prepare_background(duration: float, out_path: str) -> bool:
         "-vf", "noise=alls=6:allf=t",
         out_path,
     ], "prepare_background_fallback")
+
+
+def _stitch_backgrounds(clip_paths: list, out_path: str, target_duration: float) -> bool:
+    if len(clip_paths) == 1:
+        return run_ffmpeg([
+            "ffmpeg", "-y", "-i", clip_paths[0], "-t", str(target_duration),
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(FPS), out_path,
+        ], "stitch_single")
+
+    TRANSITION = 0.5
+    inputs = []
+    for p in clip_paths:
+        inputs += ["-i", p]
+
+    durations = [get_audio_duration(p) or (target_duration / len(clip_paths) + 1.0) for p in clip_paths]
+
+    filter_parts = []
+    for i in range(len(clip_paths)):
+        filter_parts.append(f"[{i}:v]fps={FPS},format=yuv420p,setpts=PTS-STARTPTS[nv{i}]")
+
+    prev_v = "nv0"
+    cumulative = durations[0]
+    for i in range(1, len(clip_paths)):
+        offset = max(0.1, cumulative - TRANSITION)
+        out_v = f"v{i}"
+        filter_parts.append(f"[{prev_v}][nv{i}]xfade=transition=fade:duration={TRANSITION}:offset={offset:.2f}[{out_v}]")
+        prev_v = out_v
+        cumulative += durations[i] - TRANSITION
+
+    filter_complex = ";".join(filter_parts)
+
+    ok = run_ffmpeg([
+        "ffmpeg", "-y",
+        *inputs,
+        "-filter_complex", filter_complex,
+        "-map", f"[{prev_v}]",
+        "-t", str(target_duration),
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(FPS),
+        out_path,
+    ], "stitch_backgrounds")
+    return ok and is_valid_video(out_path)
 
 
 def render_caption_frames(word_timings: list, total_duration: float, frames_dir: str):
@@ -364,7 +430,12 @@ def add_background_music(video_path: str, out_path: str) -> bool:
 
 
 def create_short(quote: str = None, out_name: str = "short.mp4"):
-    quote = quote or random.choice(QUOTES)
+    if not quote:
+        run_number = os.environ.get("GITHUB_RUN_NUMBER")
+        if run_number:
+            quote = QUOTES[int(run_number) % len(QUOTES)]
+        else:
+            quote = random.choice(QUOTES)
     print(f"Цитата: {quote}")
 
     os.makedirs(OUT_DIR, exist_ok=True)
