@@ -138,7 +138,7 @@ QUOTES = [
 ]
 
 
-def run_ffmpeg(cmd: list, label: str = "ffmpeg") -> bool:
+def run_ffmpeg(cmd, label="ffmpeg"):
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"[{label}] ffmpeg завершился с ошибкой:\n{result.stderr[-800:]}")
@@ -146,12 +146,11 @@ def run_ffmpeg(cmd: list, label: str = "ffmpeg") -> bool:
     return True
 
 
-def get_audio_duration(audio_path: str) -> float:
+def get_audio_duration(audio_path):
     if not os.path.exists(audio_path) or os.path.getsize(audio_path) < 100:
         return 0.0
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "csv=p=0", audio_path],
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", audio_path],
         capture_output=True, text=True
     )
     try:
@@ -160,7 +159,7 @@ def get_audio_duration(audio_path: str) -> float:
         return 0.0
 
 
-def is_valid_video(path: str, min_duration: float = 0.3) -> bool:
+def is_valid_video(path, min_duration=0.3):
     if not os.path.exists(path) or os.path.getsize(path) < 1000:
         return False
     result = subprocess.run(
@@ -172,14 +171,14 @@ def is_valid_video(path: str, min_duration: float = 0.3) -> bool:
     if result.returncode != 0 or not result.stdout.strip():
         return False
     try:
-        lines = [l for l in result.stdout.strip().split("\n") if l]
+        lines = [line for line in result.stdout.strip().split("\n") if line]
         duration = float(lines[-1])
         return duration >= min_duration
     except (ValueError, IndexError):
         return False
 
 
-async def _generate_voice_once(text: str, audio_path: str, voice: str, rate: str, pitch: str = None):
+async def _generate_voice_once(text, audio_path, voice, rate, pitch=None):
     import edge_tts
     kwargs = {"rate": rate}
     if pitch:
@@ -194,20 +193,17 @@ async def _generate_voice_once(text: str, audio_path: str, voice: str, rate: str
             elif chunk["type"] == "WordBoundary":
                 word_timings.append({
                     "word": chunk["text"],
-                    "start": chunk["offset"] / 10_000_000,
-                    "end": (chunk["offset"] + chunk["duration"]) / 10_000_000,
+                    "start": chunk["offset"] / 10000000,
+                    "end": (chunk["offset"] + chunk["duration"]) / 10000000,
                 })
     return word_timings
 
 
-async def generate_voice_with_timings(text: str, audio_path: str, voice: str = None,
-                                        rate: str = None, pitch: str = None, retries: int = 3):
+async def generate_voice_with_timings(text, audio_path, voice=None, rate=None, pitch=None, retries=3):
     last_error = None
     for attempt in range(1, retries + 1):
         try:
-            word_timings = await _generate_voice_once(
-                text, audio_path, voice or VOICE, rate or RATE, pitch
-            )
+            word_timings = await _generate_voice_once(text, audio_path, voice or VOICE, rate or RATE, pitch)
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 500:
                 return word_timings
             last_error = "пустой аудиофайл"
@@ -221,7 +217,7 @@ async def generate_voice_with_timings(text: str, audio_path: str, voice: str = N
     return []
 
 
-def build_fallback_timings(text: str) -> list:
+def build_fallback_timings(text):
     words = text.split()
     t = 0.3
     timings = []
@@ -232,7 +228,7 @@ def build_fallback_timings(text: str) -> list:
     return timings
 
 
-def resolve_duration(word_timings: list, audio_path: str, tail: float = 1.0) -> float:
+def resolve_duration(word_timings, audio_path, tail=1.0):
     word_based = word_timings[-1]["end"] + tail if word_timings else tail
     real_audio = get_audio_duration(audio_path)
     duration = max(word_based, real_audio + tail * 0.5) if real_audio > 0 else word_based
@@ -249,7 +245,7 @@ MOOD_QUERIES = [
 MOOD_MUST_INCLUDE = ["money", "business", "stock", "car", "office", "cash", "finance", "wealth"]
 
 
-def _pexels_fetch_one(query: str, out_path: str, exclude_ids: set = None, retries: int = 2) -> bool:
+def _pexels_fetch_one(query, out_path, exclude_ids=None, retries=2):
     api_key = os.environ.get("PEXELS_API_KEY", "")
     if not api_key:
         return False
@@ -267,10 +263,7 @@ def _pexels_fetch_one(query: str, out_path: str, exclude_ids: set = None, retrie
             videos = resp.json().get("videos", [])
             videos = [v for v in videos if v.get("id") not in exclude_ids]
 
-            relevant = [
-                v for v in videos
-                if any(w in v.get("url", "").lower() for w in MOOD_MUST_INCLUDE)
-            ]
+            relevant = [v for v in videos if any(w in v.get("url", "").lower() for w in MOOD_MUST_INCLUDE)]
             videos = relevant or videos
             if not videos:
                 return False
@@ -299,7 +292,7 @@ def _pexels_fetch_one(query: str, out_path: str, exclude_ids: set = None, retrie
     return False
 
 
-def prepare_background(duration: float, out_path: str) -> bool:
+def prepare_background(duration, out_path):
     api_key = os.environ.get("PEXELS_API_KEY", "")
     if api_key:
         clip_len = 6.0
@@ -336,7 +329,8 @@ def prepare_background(duration: float, out_path: str) -> bool:
                 ], f"bg_segment_{i}")
                 if ok and is_valid_video(seg_path):
                     processed.append(seg_path)
-                os.remove(raw) if os.path.exists(raw) else None
+                if os.path.exists(raw):
+                    os.remove(raw)
 
             if processed:
                 success = _stitch_backgrounds(processed, out_path, duration)
@@ -360,66 +354,3 @@ def prepare_background(duration: float, out_path: str) -> bool:
         if ok and is_valid_video(out_path):
             return True
         print("  Фон из assets не удался, переключаюсь на процедурный")
-
-    return run_ffmpeg([
-        "ffmpeg", "-y",
-        "-f", "lavfi",
-        "-i", f"color=c=0x14181D:s={W}x{H}:d={duration}",
-        "-vf", "noise=alls=6:allf=t",
-        out_path,
-    ], "prepare_background_fallback")
-
-
-def _stitch_backgrounds(clip_paths: list, out_path: str, target_duration: float) -> bool:
-    if len(clip_paths) == 1:
-        return run_ffmpeg([
-            "ffmpeg", "-y", "-i", clip_paths[0], "-t", str(target_duration),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(FPS), out_path,
-        ], "stitch_single")
-
-    TRANSITION = 0.5
-    inputs = []
-    for p in clip_paths:
-        inputs += ["-i", p]
-
-    durations = [get_audio_duration(p) or (target_duration / len(clip_paths) + 1.0) for p in clip_paths]
-
-    filter_parts = []
-    for i in range(len(clip_paths)):
-        filter_parts.append(f"[{i}:v]fps={FPS},format=yuv420p,setpts=PTS-STARTPTS[nv{i}]")
-
-    prev_v = "nv0"
-    cumulative = durations[0]
-    for i in range(1, len(clip_paths)):
-        offset = max(0.1, cumulative - TRANSITION)
-        out_v = f"v{i}"
-        filter_parts.append(f"[{prev_v}][nv{i}]xfade=transition=fade:duration={TRANSITION}:offset={offset:.2f}[{out_v}]")
-        prev_v = out_v
-        cumulative += durations[i] - TRANSITION
-
-    filter_complex = ";".join(filter_parts)
-
-    ok = run_ffmpeg([
-        "ffmpeg", "-y",
-        *inputs,
-        "-filter_complex", filter_complex,
-        "-map", f"[{prev_v}]",
-        "-t", str(target_duration),
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(FPS),
-        out_path,
-    ], "stitch_backgrounds")
-    return ok and is_valid_video(out_path)
-
-
-def render_caption_frames(word_timings: list, total_duration: float, frames_dir: str):
-    os.makedirs(frames_dir, exist_ok=True)
-    font = ImageFont.truetype(FONT_BOLD, 62)
-    total_frames = max(1, int(total_duration * FPS) + 1)
-    words = [w["word"] for w in word_timings]
-    max_line_width = W - 100
-
-    for frame_i in range(total_frames):
-        t = frame_i / FPS
-        active_idx = 0
-        for i, w in enumerate(word_timings):
-            if w["start"] <= t <= w["end"]:
