@@ -1,6 +1,10 @@
 """
 create_short.py — генератор коротких видео под TikTok / YouTube Shorts.
 Формат: 1080x1920 (9:16), mp4, h264.
+
+Написан с расчётом на устойчивость: каждый шаг, который может подвести
+(сеть, TTS, ffmpeg), обёрнут проверками и запасными вариантами, чтобы
+одиночный сбой не ронял всю генерацию.
 """
 
 import asyncio
@@ -8,6 +12,7 @@ import os
 import random
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -16,6 +21,7 @@ VOICE = "ru-RU-DmitryNeural"
 RATE = "+8%"
 W, H = 1080, 1920
 FPS = 30
+MAX_STEP_DURATION = 25.0
 
 BG_DIR = "assets/backgrounds"
 OUT_DIR = "output"
@@ -34,12 +40,53 @@ QUOTES = [
 ]
 
 
-async def generate_voice_with_timings(text: str, audio_path: str, voice: str = None, rate: str = None, pitch: str = None):
+def run_ffmpeg(cmd: list, label: str = "ffmpeg") -> bool:
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"[{label}] ffmpeg завершился с ошибкой:\n{result.stderr[-800:]}")
+        return False
+    return True
+
+
+def get_audio_duration(audio_path: str) -> float:
+    if not os.path.exists(audio_path) or os.path.getsize(audio_path) < 100:
+        return 0.0
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", audio_path],
+        capture_output=True, text=True
+    )
+    try:
+        return float(result.stdout.strip())
+    except (ValueError, AttributeError):
+        return 0.0
+
+
+def is_valid_video(path: str, min_duration: float = 0.3) -> bool:
+    if not os.path.exists(path) or os.path.getsize(path) < 1000:
+        return False
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=codec_type", "-show_entries", "format=duration",
+         "-of", "csv=p=0", path],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return False
+    try:
+        lines = [l for l in result.stdout.strip().split("\n") if l]
+        duration = float(lines[-1])
+        return duration >= min_duration
+    except (ValueError, IndexError):
+        return False
+
+
+async def _generate_voice_once(text: str, audio_path: str, voice: str, rate: str, pitch: str = None):
     import edge_tts
-    kwargs = {"rate": rate or RATE}
+    kwargs = {"rate": rate}
     if pitch:
         kwargs["pitch"] = pitch
-    communicate = edge_tts.Communicate(text, voice or VOICE, **kwargs)
+    communicate = edge_tts.Communicate(text, voice, **kwargs)
     word_timings = []
 
     with open(audio_path, "wb") as audio_file:
@@ -55,32 +102,74 @@ async def generate_voice_with_timings(text: str, audio_path: str, voice: str = N
     return word_timings
 
 
-def prepare_background(duration: float, out_path: str):
-    files = list(Path(BG_DIR).glob("*.mp4"))
+async def generate_voice_with_timings(text: str, audio_path: str, voice: str = None,
+                                        rate: str = None, pitch: str = None, retries: int = 3):
+    last_error = None
+    for attempt in range(1, retries + 1):
+        try:
+            word_timings = await _generate_voice_once(
+                text, audio_path, voice or VOICE, rate or RATE, pitch
+            )
+            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 500:
+                return word_timings
+            last_error = "пустой аудиофайл"
+        except Exception as e:
+            last_error = str(e)
+
+        print(f"  Попытка {attempt}/{retries} озвучки не удалась ({last_error}), повтор...")
+        await asyncio.sleep(1.5 * attempt)
+
+    print(f"  Озвучка не удалась после {retries} попыток: {last_error}")
+    return []
+
+
+def build_fallback_timings(text: str) -> list:
+    words = text.split()
+    t = 0.3
+    timings = []
+    for w in words:
+        dur = max(0.18, len(w) * 0.06)
+        timings.append({"word": w, "start": t, "end": t + dur})
+        t += dur + 0.05
+    return timings
+
+
+def resolve_duration(word_timings: list, audio_path: str, tail: float = 1.0) -> float:
+    word_based = word_timings[-1]["end"] + tail if word_timings else tail
+    real_audio = get_audio_duration(audio_path)
+    duration = max(word_based, real_audio + tail * 0.5) if real_audio > 0 else word_based
+    return min(duration, MAX_STEP_DURATION)
+
+
+def prepare_background(duration: float, out_path: str) -> bool:
+    files = [f for f in Path(BG_DIR).glob("*.mp4") if is_valid_video(str(f))]
+
     if files:
         bg = str(random.choice(files))
-        cmd = [
+        ok = run_ffmpeg([
             "ffmpeg", "-y",
             "-stream_loop", "-1", "-i", bg,
             "-t", str(duration),
             "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}",
             "-an", out_path,
-        ]
-    else:
-        cmd = [
-            "ffmpeg", "-y",
-            "-f", "lavfi",
-            "-i", f"color=c=0x14181D:s={W}x{H}:d={duration}",
-            "-vf", "noise=alls=6:allf=t",
-            out_path,
-        ]
-    subprocess.run(cmd, check=True, capture_output=True)
+        ], "prepare_background")
+        if ok and is_valid_video(out_path):
+            return True
+        print("  Фон из assets не удался, переключаюсь на процедурный")
+
+    return run_ffmpeg([
+        "ffmpeg", "-y",
+        "-f", "lavfi",
+        "-i", f"color=c=0x14181D:s={W}x{H}:d={duration}",
+        "-vf", "noise=alls=6:allf=t",
+        out_path,
+    ], "prepare_background_fallback")
 
 
 def render_caption_frames(word_timings: list, total_duration: float, frames_dir: str):
     os.makedirs(frames_dir, exist_ok=True)
     font = ImageFont.truetype(FONT_BOLD, 62)
-    total_frames = int(total_duration * FPS) + 1
+    total_frames = max(1, int(total_duration * FPS) + 1)
     words = [w["word"] for w in word_timings]
 
     for frame_i in range(total_frames):
@@ -96,31 +185,32 @@ def render_caption_frames(word_timings: list, total_duration: float, frames_dir:
         img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
 
-        window = 2
-        lo = max(0, active_idx - window)
-        hi = min(len(words), active_idx + window + 1)
-        visible = words[lo:hi]
+        if words:
+            window = 2
+            lo = max(0, active_idx - window)
+            hi = min(len(words), active_idx + window + 1)
+            visible = words[lo:hi]
 
-        spacing = 18
-        widths = [draw.textbbox((0, 0), w, font=font)[2] for w in visible]
-        total_w = sum(widths) + spacing * (len(visible) - 1)
-        x = (W - total_w) // 2
-        y = int(H * 0.62)
+            spacing = 18
+            widths = [draw.textbbox((0, 0), w, font=font)[2] for w in visible]
+            total_w = sum(widths) + spacing * (len(visible) - 1)
+            x = (W - total_w) // 2
+            y = int(H * 0.62)
 
-        for i, w in enumerate(visible):
-            real_idx = lo + i
-            color = COLOR_HIGHLIGHT if real_idx == active_idx else COLOR_WHITE
-            draw.text((x, y), w, font=font, fill=color,
-                      stroke_width=4, stroke_fill=(0, 0, 0, 255))
-            x += widths[i] + spacing
+            for i, w in enumerate(visible):
+                real_idx = lo + i
+                color = COLOR_HIGHLIGHT if real_idx == active_idx else COLOR_WHITE
+                draw.text((x, y), w, font=font, fill=color,
+                          stroke_width=4, stroke_fill=(0, 0, 0, 255))
+                x += widths[i] + spacing
 
         img.save(f"{frames_dir}/f_{frame_i:05d}.png")
 
     return total_frames
 
 
-def assemble_final(bg_path: str, frames_dir: str, audio_path: str, out_path: str):
-    cmd = [
+def assemble_final(bg_path: str, frames_dir: str, audio_path: str, out_path: str) -> bool:
+    ok = run_ffmpeg([
         "ffmpeg", "-y",
         "-i", bg_path,
         "-framerate", str(FPS),
@@ -132,8 +222,8 @@ def assemble_final(bg_path: str, frames_dir: str, audio_path: str, out_path: str
         "-r", str(FPS), "-vsync", "cfr",
         "-c:a", "aac", "-shortest",
         out_path,
-    ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    ], "assemble_final")
+    return ok and is_valid_video(out_path)
 
 
 def create_short(quote: str = None, out_name: str = "short.mp4"):
@@ -149,15 +239,17 @@ def create_short(quote: str = None, out_name: str = "short.mp4"):
     word_timings = asyncio.run(generate_voice_with_timings(quote, audio_path))
 
     if not word_timings:
-        print("Предупреждение: нет точных таймингов от edge-tts, использую оценку по длине слов")
-        words = quote.split()
-        t = 0.3
-        for w in words:
-            dur = max(0.18, len(w) * 0.06)
-            word_timings.append({"word": w, "start": t, "end": t + dur})
-            t += dur + 0.05
+        print("  Использую оценку таймингов по длине слов (TTS не дал точных данных)")
+        word_timings = build_fallback_timings(quote)
+        if not os.path.exists(audio_path) or os.path.getsize(audio_path) < 500:
+            fallback_dur = word_timings[-1]["end"] + 1.0
+            run_ffmpeg([
+                "ffmpeg", "-y", "-f", "lavfi",
+                "-i", "anullsrc=r=44100:cl=stereo",
+                "-t", str(fallback_dur), audio_path,
+            ], "silence_fallback")
 
-    duration = word_timings[-1]["end"] + 1.0
+    duration = resolve_duration(word_timings, audio_path)
 
     bg_path = f"{TMP_DIR}/bg.mp4"
     prepare_background(duration, bg_path)
@@ -166,9 +258,13 @@ def create_short(quote: str = None, out_name: str = "short.mp4"):
     render_caption_frames(word_timings, duration, frames_dir)
 
     out_path = os.path.join(OUT_DIR, out_name)
-    assemble_final(bg_path, frames_dir, audio_path, out_path)
+    success = assemble_final(bg_path, frames_dir, audio_path, out_path)
 
-    shutil.rmtree(TMP_DIR)
+    shutil.rmtree(TMP_DIR, ignore_errors=True)
+
+    if not success:
+        raise RuntimeError(f"Не удалось собрать видео для цитаты: {quote}")
+
     print(f"Готово: {out_path} (~{duration:.1f} сек)")
     return out_path
 
