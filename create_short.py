@@ -57,6 +57,84 @@ QUOTES = [
     "сначала откладывает, а живёт на то, что осталось. Это меняет буквально одну "
     "привычку, но результат отличается на десятилетия вперёд. Начни с этого правила "
     "сегодня, а не с понедельника.",
+
+    "Кредит на телефон в рассрочку — это способ платить завтрашними деньгами за "
+    "сегодняшнее желание. Банки не выдумали ничего нового, они просто нашли способ "
+    "продать тебе твою же будущую зарплату с процентами. Богатые покупают телефон "
+    "сразу, потому что у них уже есть подушка на это.",
+
+    "Финансовая подушка это не роскошь, это разница между уволили и я справлюсь "
+    "и уволили и я в панике. Три-шесть месяцев расходов на отдельном счёте меняют "
+    "не только финансы, но и то, как ты принимаешь решения на работе — ты перестаёшь "
+    "бояться и начинаешь выбирать.",
+
+    "Инфляция ест твои сбережения на банковском вкладе быстрее, чем банк начисляет "
+    "проценты. Деньги под подушкой и деньги на вкладе под три процента теряют "
+    "покупательную способность одинаково стабильно. Хранить — не значит сберегать, "
+    "если инфляция выше доходности.",
+
+    "Ты не станешь богатым от одной хорошей сделки, но можешь разориться от одной "
+    "плохой. Асимметрия рисков работает против тех, кто ставит всё на один исход. "
+    "Диверсификация — это не трусость, это единственная стратегия, которая переживает "
+    "твои же ошибки.",
+
+    "Купить вещь в кредит, чтобы показать в соцсетях, что у тебя всё хорошо — это "
+    "самая дорогая форма рекламы, за которую платишь ты сам. Настоящее богатство "
+    "почти всегда выглядит скучно и незаметно, потому что оно работает на будущее, "
+    "а не на лайки сегодня.",
+
+    "Пассивный доход не появляется пассивно. Сначала ты вкладываешь активное время, "
+    "деньги и ошибки, и только потом система начинает работать без тебя. Все, кто "
+    "продают идею мгновенного пассивного дохода, обычно зарабатывают на продаже "
+    "этой идеи, а не на самом доходе.",
+
+    "Сравнение своей зарплаты с чужим образом жизни в соцсетях — гарантированный "
+    "способ чувствовать себя бедным при любом доходе. Ты видишь чужой результат, "
+    "но не видишь чужие долги, чужой кредит и чужую тревогу за спиной красивой "
+    "картинки.",
+
+    "Урок про деньги, который не дают в школе — цена вопрос не только про то, "
+    "сколько стоит вещь, а про то, сколько часов твоей жизни ты обменял, чтобы "
+    "её купить. Пересчитывай покупки не в деньгах, а в часах работы — это меняет "
+    "восприятие моментально.",
+
+    "Большинство лотерейных миллионеров возвращаются к прежнему уровню жизни за "
+    "несколько лет. Деньги без финансовой грамотности не решают проблему — они "
+    "просто увеличивают масштаб тех же самых финансовых привычек, которые были "
+    "и до выигрыша.",
+
+    "Инвестировать по чуть-чуть, но регулярно, почти всегда обгоняет попытку "
+    "поймать идеальный момент для входа. Пока ты ждёшь идеальной точки входа на "
+    "рынок, рынок растёт без тебя. Время в рынке важнее, чем тайминг рынка.",
+
+    "Твой самый большой актив в двадцать пять лет — это не деньги, а время до "
+    "пенсии. Сложный процент работает медленно в начале и взрывается в конце. "
+    "Каждый год промедления с началом инвестирования стоит тебе намного больше, "
+    "чем кажется сейчас.",
+
+    "Богатые люди задают вопрос как это купить, чтобы это работало на меня. "
+    "Бедные люди задают вопрос как накопить, чтобы это купить. Один и тот же "
+    "актив — недвижимость, акции, бизнес — но принципиально разное отношение "
+    "к тому, что деньги должны делать дальше.",
+
+    "Долг на потребление и долг на актив — это два разных долга, которые многие "
+    "путают. Кредит на отпуск исчезает вместе с воспоминаниями, а платежи остаются. "
+    "Кредит на актив, который приносит доход больше процентной ставки — это "
+    "инструмент, а не проблема.",
+
+    "Финансовая грамотность не про то, чтобы знать сложные термины с Уолл-стрит. "
+    "Она про то, чтобы твои расходы были меньше доходов, а разница работала на "
+    "тебя. Всё остальное — это детали поверх этого одного простого правила.",
+
+    "Работа за зарплату — это обмен времени на деньги по фиксированному курсу, "
+    "который ты не контролируешь. Собственный актив — это возможность продавать "
+    "результат, а не время. Первое даёт стабильность, второе даёт потолок роста "
+    "без ограничений.",
+
+    "Люди тратят больше времени на выбор ресторана на вечер, чем на выбор, куда "
+    "вложить сбережения на следующие десять лет. Мелкие решения съедают внимание, "
+    "а крупные решения, которые реально меняют финансовое будущее, откладываются "
+    "на потом, которое не наступает.",
 ]
 
 
@@ -345,163 +423,3 @@ def render_caption_frames(word_timings: list, total_duration: float, frames_dir:
         active_idx = 0
         for i, w in enumerate(word_timings):
             if w["start"] <= t <= w["end"]:
-                active_idx = i
-                break
-            elif t > w["end"]:
-                active_idx = i
-
-        img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-
-        if words:
-            spacing = 18
-            window = 2
-            while window >= 0:
-                lo = max(0, active_idx - window)
-                hi = min(len(words), active_idx + window + 1)
-                visible = words[lo:hi]
-                widths = [draw.textbbox((0, 0), w, font=font)[2] for w in visible]
-                total_w = sum(widths) + spacing * (len(visible) - 1)
-                if total_w <= max_line_width or window == 0:
-                    break
-                window -= 1
-
-            x = (W - total_w) // 2
-            y = int(H * 0.62)
-
-            pad_x, pad_y = 24, 16
-            box_h = 62 + pad_y * 2
-            draw.rounded_rectangle(
-                [x - pad_x, y - pad_y + 8, x + total_w + pad_x, y + box_h - pad_y + 8],
-                radius=14, fill=(0, 0, 0, 190)
-            )
-
-            for i, w in enumerate(visible):
-                real_idx = lo + i
-                color = COLOR_HIGHLIGHT if real_idx == active_idx else COLOR_WHITE
-                draw.text((x, y), w, font=font, fill=color,
-                          stroke_width=4, stroke_fill=(0, 0, 0, 255))
-                x += widths[i] + spacing
-
-        img.save(f"{frames_dir}/f_{frame_i:05d}.png")
-
-    return total_frames
-
-
-def assemble_final(bg_path: str, frames_dir: str, audio_path: str, out_path: str) -> bool:
-    ok = run_ffmpeg([
-        "ffmpeg", "-y",
-        "-i", bg_path,
-        "-framerate", str(FPS),
-        "-i", f"{frames_dir}/f_%05d.png",
-        "-i", audio_path,
-        "-filter_complex", "[0:v][1:v]overlay=0:0[v]",
-        "-map", "[v]", "-map", "2:a",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-r", str(FPS), "-vsync", "cfr",
-        "-c:a", "aac", "-shortest",
-        out_path,
-    ], "assemble_final")
-    return ok and is_valid_video(out_path)
-
-
-def add_background_music(video_path: str, out_path: str) -> bool:
-    music_dir = "assets/music"
-    music_files = list(Path(music_dir).glob("*.mp3")) if os.path.isdir(music_dir) else []
-
-    duration = get_audio_duration(video_path)
-    if duration <= 0:
-        return False
-
-    music_path = None
-    if music_files:
-        music_path = str(random.choice(music_files))
-    else:
-        synth_path = "_music_synth.mp3"
-        ok = run_ffmpeg([
-            "ffmpeg", "-y",
-            "-f", "lavfi", "-i", f"sine=frequency=220:duration={duration}",
-            "-f", "lavfi", "-i", f"sine=frequency=330:duration={duration}",
-            "-filter_complex", "[0:a]volume=0.05[a0];[1:a]volume=0.03[a1];[a0][a1]amix=inputs=2:duration=first",
-            synth_path,
-        ], "music_synth")
-        if ok:
-            music_path = synth_path
-
-    if not music_path:
-        return False
-
-    ok = run_ffmpeg([
-        "ffmpeg", "-y",
-        "-i", video_path,
-        "-i", music_path,
-        "-filter_complex",
-        f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{duration},volume=1[music];"
-        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=2:weights=1 0.3[aout]",
-        "-map", "0:v", "-map", "[aout]",
-        "-c:v", "copy", "-c:a", "aac",
-        out_path,
-    ], "add_background_music")
-
-    if music_path.startswith("_music_synth") and os.path.exists(music_path):
-        os.remove(music_path)
-
-    return ok and is_valid_video(out_path, min_duration=1.0)
-
-
-def create_short(quote: str = None, out_name: str = "short.mp4"):
-    if not quote:
-        run_number = os.environ.get("GITHUB_RUN_NUMBER")
-        if run_number:
-            quote = QUOTES[int(run_number) % len(QUOTES)]
-        else:
-            quote = random.choice(QUOTES)
-    print(f"Цитата: {quote}")
-
-    os.makedirs(OUT_DIR, exist_ok=True)
-    if os.path.exists(TMP_DIR):
-        shutil.rmtree(TMP_DIR)
-    os.makedirs(TMP_DIR)
-
-    audio_path = f"{TMP_DIR}/voice.mp3"
-    word_timings = asyncio.run(generate_voice_with_timings(quote, audio_path))
-
-    if not word_timings:
-        print("  Использую оценку таймингов по длине слов (TTS не дал точных данных)")
-        word_timings = build_fallback_timings(quote)
-        if not os.path.exists(audio_path) or os.path.getsize(audio_path) < 500:
-            fallback_dur = word_timings[-1]["end"] + 1.0
-            run_ffmpeg([
-                "ffmpeg", "-y", "-f", "lavfi",
-                "-i", "anullsrc=r=44100:cl=stereo",
-                "-t", str(fallback_dur), audio_path,
-            ], "silence_fallback")
-
-    duration = resolve_duration(word_timings, audio_path)
-
-    bg_path = f"{TMP_DIR}/bg.mp4"
-    prepare_background(duration, bg_path)
-
-    frames_dir = f"{TMP_DIR}/frames"
-    render_caption_frames(word_timings, duration, frames_dir)
-
-    out_path = os.path.join(OUT_DIR, out_name)
-    silent_path = f"{TMP_DIR}/_novoice_music.mp4"
-    success = assemble_final(bg_path, frames_dir, audio_path, silent_path)
-
-    if not success:
-        shutil.rmtree(TMP_DIR, ignore_errors=True)
-        raise RuntimeError(f"Не удалось собрать видео для цитаты: {quote}")
-
-    if not add_background_music(silent_path, out_path):
-        print("  Музыка не подмешалась, сохраняю видео без неё")
-        shutil.copy(silent_path, out_path)
-
-    shutil.rmtree(TMP_DIR, ignore_errors=True)
-
-    print(f"Готово: {out_path} (~{duration:.1f} сек)")
-    return out_path
-
-
-if __name__ == "__main__":
-    create_short()
