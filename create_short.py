@@ -15,13 +15,14 @@ import subprocess
 import time
 from pathlib import Path
 
+import requests
 from PIL import Image, ImageDraw, ImageFont
 
 VOICE = "ru-RU-DmitryNeural"
 RATE = "+8%"
 W, H = 1080, 1920
 FPS = 30
-MAX_STEP_DURATION = 25.0
+MAX_STEP_DURATION = 45.0
 
 BG_DIR = "assets/backgrounds"
 OUT_DIR = "output"
@@ -32,11 +33,30 @@ COLOR_WHITE = (255, 255, 255)
 COLOR_HIGHLIGHT = (240, 185, 11)
 
 QUOTES = [
-    "Дисциплина побеждает мотивацию каждый раз, когда мотивация решает взять выходной",
-    "Ты не устал, тебе просто скучно побеждать медленно",
-    "Никто не придёт и не спасёт тебя, хорошая новость — тебе это и не нужно",
-    "Боль от дисциплины весит грамм, боль от сожаления весит тонну",
-    "Успех не любит тех, кто ждёт настроения, чтобы начать",
+    "Дисциплина побеждает мотивацию каждый раз, когда мотивация решает взять выходной. "
+    "Мотивация — это чувство, а чувства приходят и уходят. Дисциплина — это решение, "
+    "которое ты принимаешь один раз и больше не обсуждаешь с собой. Никто не чувствует "
+    "себя готовым каждый день. Побеждают те, кто действует и без этого чувства.",
+
+    "Ты не устал, тебе просто скучно побеждать медленно. Настоящий прогресс не выглядит "
+    "красиво в моменте. Он выглядит как один и тот же день, повторённый триста раз подряд. "
+    "Люди хотят результат за неделю, а потом удивляются, почему сдались на второй. "
+    "Скучная последовательность всегда побеждает вдохновлённый рывок.",
+
+    "Никто не придёт и не спасёт тебя, и это лучшая новость, которую ты можешь услышать "
+    "сегодня. Пока ты ждёшь мотивации, поддержки, идеального момента — время идёт "
+    "одинаково быстро для всех. Тебе не нужно разрешение, чтобы начать. Тебе нужно "
+    "просто перестать ждать и сделать первый шаг, даже если он будет неидеальным.",
+
+    "Боль от дисциплины весит грамм, боль от сожаления весит тонну. Каждый раз, когда "
+    "выбираешь лёгкий путь сегодня, ты занимаешь в долг у себя завтрашнего. И этот долг "
+    "всегда возвращается с процентами. Гораздо проще потерпеть неудобство сейчас, чем "
+    "жить с сожалением потом.",
+
+    "Успех не любит тех, кто ждёт настроения, чтобы начать. Профессионалы не ждут "
+    "вдохновения — они садятся и работают, независимо от того, как себя чувствуют. "
+    "Именно эта разница отделяет тех, кто добивается цели, от тех, кто просто мечтает "
+    "о ней годами. Настроение — это роскошь, которую нельзя ждать.",
 ]
 
 
@@ -141,9 +161,82 @@ def resolve_duration(word_timings: list, audio_path: str, tail: float = 1.0) -> 
     return min(duration, MAX_STEP_DURATION)
 
 
-def prepare_background(duration: float, out_path: str) -> bool:
-    files = [f for f in Path(BG_DIR).glob("*.mp4") if is_valid_video(str(f))]
+MOOD_QUERIES = [
+    "gym workout silhouette",
+    "man running sunrise",
+    "mountain climb hiker",
+    "city night motivation",
+    "ocean waves storm",
+]
 
+
+def _pexels_fetch_mood_video(out_path: str, retries: int = 2) -> bool:
+    api_key = os.environ.get("PEXELS_API_KEY", "")
+    if not api_key:
+        return False
+
+    query = random.choice(MOOD_QUERIES)
+    headers = {"Authorization": api_key}
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.get(
+                "https://api.pexels.com/videos/search",
+                headers=headers,
+                params={"query": query, "per_page": 8, "orientation": "portrait"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            videos = resp.json().get("videos", [])
+            if not videos:
+                return False
+
+            video = random.choice(videos)
+            files = video.get("video_files", [])
+            candidates = [f for f in files if f.get("file_type") == "video/mp4" and f.get("height", 0) >= 1280]
+            if not candidates:
+                candidates = [f for f in files if f.get("file_type") == "video/mp4"]
+            if not candidates:
+                return False
+            candidates.sort(key=lambda f: f.get("height", 0))
+            file_url = candidates[len(candidates) // 2]["link"]
+
+            r = requests.get(file_url, stream=True, timeout=60)
+            r.raise_for_status()
+            with open(out_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            if is_valid_video(out_path):
+                return True
+        except Exception as e:
+            print(f"  Ошибка получения фона с Pexels (попытка {attempt}/{retries}): {e}")
+        time.sleep(1)
+    return False
+
+
+def prepare_background(duration: float, out_path: str) -> bool:
+    tmp_raw = out_path + "_raw.mp4"
+
+    if _pexels_fetch_mood_video(tmp_raw):
+        zoom_filter = (
+            f"scale={W}:{H}:force_original_aspect_ratio=increase,"
+            f"crop={W}:{H},"
+            f"zoompan=z='min(zoom+0.0010,1.06)':d=1:s={W}x{H}:fps={FPS},"
+            f"eq=contrast=1.08:saturation=1.2:gamma=0.97,"
+            f"colorbalance=rs=0.05:bs=-0.05:rm=0.03:bm=-0.03"
+        )
+        ok = run_ffmpeg([
+            "ffmpeg", "-y",
+            "-stream_loop", "-1", "-i", tmp_raw,
+            "-t", str(duration),
+            "-vf", zoom_filter,
+            "-an", out_path,
+        ], "prepare_background_pexels")
+        os.remove(tmp_raw) if os.path.exists(tmp_raw) else None
+        if ok and is_valid_video(out_path):
+            return True
+        print("  Обработка фона с Pexels не удалась, пробую локальный")
+
+    files = [f for f in Path(BG_DIR).glob("*.mp4") if is_valid_video(str(f))]
     if files:
         bg = str(random.choice(files))
         ok = run_ffmpeg([
@@ -152,7 +245,7 @@ def prepare_background(duration: float, out_path: str) -> bool:
             "-t", str(duration),
             "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}",
             "-an", out_path,
-        ], "prepare_background")
+        ], "prepare_background_local")
         if ok and is_valid_video(out_path):
             return True
         print("  Фон из assets не удался, переключаюсь на процедурный")
@@ -226,6 +319,50 @@ def assemble_final(bg_path: str, frames_dir: str, audio_path: str, out_path: str
     return ok and is_valid_video(out_path)
 
 
+def add_background_music(video_path: str, out_path: str) -> bool:
+    music_dir = "assets/music"
+    music_files = list(Path(music_dir).glob("*.mp3")) if os.path.isdir(music_dir) else []
+
+    duration = get_audio_duration(video_path)
+    if duration <= 0:
+        return False
+
+    music_path = None
+    if music_files:
+        music_path = str(random.choice(music_files))
+    else:
+        synth_path = "_music_synth.mp3"
+        ok = run_ffmpeg([
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", f"sine=frequency=220:duration={duration}",
+            "-f", "lavfi", "-i", f"sine=frequency=330:duration={duration}",
+            "-filter_complex", "[0:a]volume=0.05[a0];[1:a]volume=0.03[a1];[a0][a1]amix=inputs=2:duration=first",
+            synth_path,
+        ], "music_synth")
+        if ok:
+            music_path = synth_path
+
+    if not music_path:
+        return False
+
+    ok = run_ffmpeg([
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-i", music_path,
+        "-filter_complex",
+        f"[1:a]aloop=loop=-1:size=2e9,atrim=0:{duration},volume=1[music];"
+        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=2:weights=1 0.3[aout]",
+        "-map", "0:v", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac",
+        out_path,
+    ], "add_background_music")
+
+    if music_path.startswith("_music_synth") and os.path.exists(music_path):
+        os.remove(music_path)
+
+    return ok and is_valid_video(out_path, min_duration=1.0)
+
+
 def create_short(quote: str = None, out_name: str = "short.mp4"):
     quote = quote or random.choice(QUOTES)
     print(f"Цитата: {quote}")
@@ -258,12 +395,18 @@ def create_short(quote: str = None, out_name: str = "short.mp4"):
     render_caption_frames(word_timings, duration, frames_dir)
 
     out_path = os.path.join(OUT_DIR, out_name)
-    success = assemble_final(bg_path, frames_dir, audio_path, out_path)
-
-    shutil.rmtree(TMP_DIR, ignore_errors=True)
+    silent_path = f"{TMP_DIR}/_novoice_music.mp4"
+    success = assemble_final(bg_path, frames_dir, audio_path, silent_path)
 
     if not success:
+        shutil.rmtree(TMP_DIR, ignore_errors=True)
         raise RuntimeError(f"Не удалось собрать видео для цитаты: {quote}")
+
+    if not add_background_music(silent_path, out_path):
+        print("  Музыка не подмешалась, сохраняю видео без неё")
+        shutil.copy(silent_path, out_path)
+
+    shutil.rmtree(TMP_DIR, ignore_errors=True)
 
     print(f"Готово: {out_path} (~{duration:.1f} сек)")
     return out_path
