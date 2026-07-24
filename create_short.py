@@ -3,8 +3,7 @@ create_short.py — генератор коротких видео под TikTok
 Формат: 1080x1920 (9:16), mp4, h264.
 
 Написан с расчётом на устойчивость: каждый шаг, который может подвести
-(сеть, TTS, ffmpeg), обёрнут проверками и запасными вариантами, чтобы
-одиночный сбой не ронял всю генерацию.
+(сеть, TTS, ffmpeg), обёрнут проверками и запасными вариантами.
 """
 
 import asyncio
@@ -169,6 +168,7 @@ MOOD_QUERIES = [
     "luxury car night city",
     "office working laptop money",
 ]
+MOOD_MUST_INCLUDE = ["money", "business", "stock", "car", "office", "cash", "finance", "wealth"]
 
 
 def _pexels_fetch_one(query: str, out_path: str, exclude_ids: set = None, retries: int = 2) -> bool:
@@ -182,12 +182,18 @@ def _pexels_fetch_one(query: str, out_path: str, exclude_ids: set = None, retrie
             resp = requests.get(
                 "https://api.pexels.com/videos/search",
                 headers=headers,
-                params={"query": query, "per_page": 12, "orientation": "portrait"},
+                params={"query": query, "per_page": 15, "orientation": "portrait"},
                 timeout=30,
             )
             resp.raise_for_status()
             videos = resp.json().get("videos", [])
             videos = [v for v in videos if v.get("id") not in exclude_ids]
+
+            relevant = [
+                v for v in videos
+                if any(w in v.get("url", "").lower() for w in MOOD_MUST_INCLUDE)
+            ]
+            videos = relevant or videos
             if not videos:
                 return False
 
@@ -332,6 +338,7 @@ def render_caption_frames(word_timings: list, total_duration: float, frames_dir:
     font = ImageFont.truetype(FONT_BOLD, 62)
     total_frames = max(1, int(total_duration * FPS) + 1)
     words = [w["word"] for w in word_timings]
+    max_line_width = W - 100
 
     for frame_i in range(total_frames):
         t = frame_i / FPS
@@ -347,16 +354,27 @@ def render_caption_frames(word_timings: list, total_duration: float, frames_dir:
         draw = ImageDraw.Draw(img)
 
         if words:
-            window = 2
-            lo = max(0, active_idx - window)
-            hi = min(len(words), active_idx + window + 1)
-            visible = words[lo:hi]
-
             spacing = 18
-            widths = [draw.textbbox((0, 0), w, font=font)[2] for w in visible]
-            total_w = sum(widths) + spacing * (len(visible) - 1)
+            window = 2
+            while window >= 0:
+                lo = max(0, active_idx - window)
+                hi = min(len(words), active_idx + window + 1)
+                visible = words[lo:hi]
+                widths = [draw.textbbox((0, 0), w, font=font)[2] for w in visible]
+                total_w = sum(widths) + spacing * (len(visible) - 1)
+                if total_w <= max_line_width or window == 0:
+                    break
+                window -= 1
+
             x = (W - total_w) // 2
             y = int(H * 0.62)
+
+            pad_x, pad_y = 24, 16
+            box_h = 62 + pad_y * 2
+            draw.rounded_rectangle(
+                [x - pad_x, y - pad_y + 8, x + total_w + pad_x, y + box_h - pad_y + 8],
+                radius=14, fill=(0, 0, 0, 190)
+            )
 
             for i, w in enumerate(visible):
                 real_idx = lo + i
