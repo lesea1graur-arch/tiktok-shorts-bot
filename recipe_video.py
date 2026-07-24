@@ -141,18 +141,24 @@ def build_step_segment(step: dict, index: int, tmp_dir: str) -> str:
 
 
 def concat_segments(segment_paths: list, out_path: str):
-    """Перекодируем при склейке (не copy), чтобы убрать дёрганье на стыках."""
-    list_file = os.path.join(TMP_DIR, "concat_list.txt")
-    with open(list_file, "w") as f:
-        for p in segment_paths:
-            f.write(f"file '{os.path.abspath(p)}'\n")
+    """Склеивает сегменты через concat FILTER (не demuxer) — покадровая склейка,
+    устойчива к небольшим расхождениям в исходных сегментах. Убирает зависания кадров."""
+    inputs = []
+    for p in segment_paths:
+        inputs += ["-i", p]
+
+    n = len(segment_paths)
+    filter_parts = "".join(f"[{i}:v:0][{i}:a:0]" for i in range(n))
+    filter_complex = f"{filter_parts}concat=n={n}:v=1:a=1[outv][outa]"
 
     cmd = [
         "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", list_file,
+        *inputs,
+        "-filter_complex", filter_complex,
+        "-map", "[outv]", "-map", "[outa]",
         "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-r", str(cs.FPS), "-vsync", "cfr",
         "-c:a", "aac",
-        "-r", str(cs.FPS),
         out_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)
