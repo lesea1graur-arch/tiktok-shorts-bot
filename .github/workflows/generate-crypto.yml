@@ -20,6 +20,11 @@ jobs:
       - name: Install Python deps
         run: pip install -r requirements.txt
 
+      - name: Download Montserrat font
+        run: |
+          mkdir -p assets/fonts
+          curl -L -o assets/fonts/Montserrat-ExtraBold.ttf https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-ExtraBold.ttf
+
       - name: Generate crypto video
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
